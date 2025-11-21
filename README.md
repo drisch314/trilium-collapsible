@@ -33,7 +33,6 @@ This is my first Trilium widget, so I'm not that deep into what's possible with 
 
 If you have ideas for how to improve a feature or implement a new one, please feel free to suggest them!
 
-
 ## Installation
 1. Create a code note of type `JS frontend`
 2. Copy the contents of trilium-collapsible.js into the note
@@ -48,3 +47,6 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
 ```
 5. Reload Trilium
+
+## Planned Features
+* Make collapsible bullet points proportional to the font size.
