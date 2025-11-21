@@ -50,3 +50,5 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 
 ## Planned Features
 * Make collapsible bullet points proportional to the font size.
+* Make numbered lists collapsible.
+* Option for universal collapsible headings.
