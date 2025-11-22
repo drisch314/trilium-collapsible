@@ -679,8 +679,8 @@ $(document).on("click.collapse-section", `
                 const subsectionCssIndex = subsectionIndent / 40;
                 subsectionIndentCss = [
                     standardSelectors.slice(subsectionCssIndex).join(', '),
-                    standardSelectors.slice(subsectionCssIndex).join(', '),
-                    standardSelectors.slice(subsectionCssIndex).join(', ')
+                    childSelectors.slice(subsectionCssIndex).join(', '),
+                    grandchildSelectors.slice(subsectionCssIndex).join(', ')
                 ].join(', ');
             }
             
