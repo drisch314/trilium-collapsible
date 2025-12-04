@@ -35,6 +35,9 @@ To fully enable the widget options, add these attributes to its JS frontent note
 #label:indentUnhandled="promoted,alias=Try to Indent Special Elements,single,boolean" #indentUnhandled=true 
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
+
+And add this label to enable functionality on mobile:
+#run=mobileStartup
 */
 
 const doCollapsibleHeaders = api.startNote.getLabelValue('doCollapsibleHeaders') ?? 'true';
@@ -43,6 +46,7 @@ const toolbarButtonPosition = api.startNote.getLabelValue('toolbarButtonPosition
 const indentLevels = api.startNote.getLabelValue('indentLevels') ?? 10;
 const indentImages = api.startNote.getLabelValue('indentImages') ?? 'true';
 const indentUnhandled = api.startNote.getLabelValue('indentUnhandled') ?? 'true';
+const considerListsIndented = api.startNote.getLabelValue('considerListsIndented') ?? 'true';
 
 // The cursor pattern allows us to find where the user is targeting in the note.
 // (where the cursor is)
@@ -71,7 +75,7 @@ const TPL = `
 const hiddenElementSelectors = `
     [style*="/*${hidden}*/"],
     :has( > [style*="/*${hidden}*/"]),
-    :is(ul, ol):has(li > p[style*="/*${hidden}*/"])
+    :is(ul, ol):has([style*="/*${hidden}*/"])
 `;
 
 const collapsibleElementSelectors = `
@@ -354,6 +358,12 @@ ${doCollapsibleLists == 'true' ? collapsibleListsStyles : ''}
 ${doCollapsibleHeaders == 'true' ? collapsibleHeadersStyles : ''}
 `;
 
+// Add the styles to the UI here rather than via the widget, so it can work
+// on mobile as well.
+var styleSheet = document.createElement("style");
+styleSheet.textContent = styles;
+document.head.appendChild(styleSheet);
+
 
 function getIndentValue(element) {
     let indentValue = 0;
@@ -420,7 +430,7 @@ $(document).on("click.collapse-section", `
             // If bullet is empty, do nothing.
             return;
         } else if (listCollapsedElements.length == 0 && spans.length == 0) {
-            // Add marked child if child doesn't exist
+            // Add marked child span if child span doesn't exist
             const newStyle = toggleMarker(
                 $(e.target).attr('style'), listCollapsed, 'background-color:auto;');
             $(e.target).attr('style', newStyle);
@@ -440,8 +450,234 @@ $(document).on("click.collapse-section", `
         }
 
         updateBackendData();
+
+        moveCursorToElement($(e.target)[0]);
     }
 });
+}
+
+function toggleSectionVisibility(startElement, indentValue = 0, collapseSection = true) {
+    // Show or hide a section based on the given minimum section indent level.
+    // Divide it by 40 to find the array index to count from to get higher-indent css selectors
+    const selectorIndex = indentValue / 40; // 40 should be the default indent size (in pixels).
+    // We can only really support elements that preserve their indent level when created.
+    // Others are done through css and designated skipping with our custom nextUntil()
+    // simulation, but then they will always take the indent of the prior element.
+
+    // These are elements we cannot handle (because they don't preserve margin-left / styles):
+        // (horizontal line, include note, mermaid diagram,
+        // code block, table, page break, img)
+    // These are elements we can handle:
+        // 1) (all other elements) - first element has indent
+        // 2) (block quote, caution, important, note, tip, warning) - child has indent
+        // 3) (lists) - grandchild has indent
+    const group1ElementCss = standardSelectors.slice(selectorIndex).join(', ');
+    const group2ElementCss = childSelectors.slice(selectorIndex).join(', ');
+    let group3ElementCss = grandchildSelectors.slice(selectorIndex).join(', ');
+    const unindentedListCss = `
+        :is(ul, ol):has(li > p[style*="margin-left:0px"]), 
+        :is(ul, ol):has(li > :not(p[style*="margin-left:"]))
+    `;
+    // TODO If lists are considered indented, add same level list selectors to group 3
+    if (considerListsIndented == 'true') {
+        if (selectorIndex == 0) {
+            group3ElementCss = group3ElementCss + ', ' + unindentedListCss;
+        } else {
+            group3ElementCss = group3ElementCss + ', ' + grandchildSelectors[selectorIndex - 1];
+        }
+    }
+    // Go until the element is not selectable by one in our lists
+    // Elements are separated by which one stores the indent info (group 1, 2, or 3)
+    let targetElements = [];
+    let currentElement = startElement;
+    let isIteratingSubsection = false;
+    let subsectionIndentCss = '';
+    while (currentElement.length > 0) {
+        const isCurrentGroup1 = $(currentElement).is(group1ElementCss);
+        const isCurrentGroup2 = $(currentElement).is(group2ElementCss);
+        const isCurrentGroup3 = $(currentElement).is(group3ElementCss);
+        
+        // If we're collapsing, ignore already :hidden elements that belong
+        // to group 1, 2, or 3 css. Any non-hidden elements of a higher indent level than
+        // the original header should be made hidden.
+        if (collapseSection && $(currentElement).is(`:hidden`)) {
+            if (isCurrentGroup1 || isCurrentGroup2 || isCurrentGroup3) {
+                currentElement = $(currentElement).next();
+                continue;
+            }
+        }
+
+        // If we're iterating a subsection, ignore the element if it is a higher
+        // indent level than the threshold we noted at the beginning of the subsection.
+        // Make sure to set iteratingSubsection to false if it's a break element.
+        if (isIteratingSubsection) {
+            // if it's in the subsectionIndentCss styles, then skip it.
+            if ($(currentElement).is(subsectionIndentCss)) {
+                currentElement = $(currentElement).next();
+                continue;
+            }
+            // else if it's an image, skip it.
+            else if ($(currentElement).is('.image')) {
+                currentElement = $(currentElement).next();
+                continue;
+            }
+            // else if it's an unhandlable element,
+            else if ($(currentElement).is(unhandledElementSelectors)) {
+                // Stop iterating through subsection if there's 2 unhandlables in a row
+                if ($($(currentElement).next()).is(unhandledElementSelectors)) {
+                    isIteratingSubsection = false;
+                } else { // if there's only one unhandlable in a row, skip it
+                    currentElement = $(currentElement).next();
+                    continue;
+                }
+            }
+            else isIteratingSubsection = false;
+        }
+        
+        // If the current element is a collapsed header and we're expanding, the
+        // next loop iterations should ignore all subsequent elements of a
+        // higher indent level than that element (or are unhandlable).
+        if (
+            !collapseSection && 
+            $(currentElement).is(`[style*="/*${collapsed}*/"]`)
+        ) {
+            // We are now iterating through a subsection
+            isIteratingSubsection = true;
+            // Set the subsection indent level css, then proceed as usual to the next loop.
+            // This header element should still be handled normally.
+            const subsectionIndent = getIndentValue(currentElement);
+            const subsectionCssIndex = subsectionIndent / 40;
+            subsectionIndentCss = [
+                standardSelectors.slice(subsectionCssIndex).join(', '),
+                childSelectors.slice(subsectionCssIndex).join(', '),
+                grandchildSelectors.slice(subsectionCssIndex).join(', ')
+            ].join(', ');
+        }
+        
+        if (considerListsIndented == 'true' && collapseSection) {
+            // if it's an unindented list, wrap a <p> around the span.
+            const isCurrentUnindentedList = $(currentElement).is(unindentedListCss);
+            const isCurrentP = $(currentElement).is('p');
+            if (isCurrentUnindentedList && !isCurrentP) {
+                // const content = $(currentElement).find('li').first().children().first();
+                // wrap <p> around it
+                // $(content).wrap(`<p style="margin-left:0px;"></p>`);
+                // Actually need to use the span background-color:auto style method for
+                // these, rather than wrapping. otherwise the hidden marker on the new p
+                // element cascades down sublists...
+
+                // If it's an empty unindented list, break! Just consider that the section end.
+                const firstLi = $(currentElement).children('li:first-child');
+                const liSpan = $(firstLi).children('span:first-child');
+                if ($(liSpan).html() == '<br data-cke-filler="true">') break;
+                // BUT CHANGE LIST HIDING SO WE DON'T GO THROUGH ALL CHILD LIs' CHILDREN
+            }
+            // No need to add the <p> to the list of target elements. Will be done below now.
+        } // TODO!!!!!!!
+        
+        if (isCurrentGroup1) {
+            targetElements.push($(currentElement));
+        } else if (isCurrentGroup2) {
+            // get its children and append them to the list
+            const children = $(currentElement).children();
+            targetElements = targetElements.concat(children);
+        } else if (isCurrentGroup3) {
+            if (collapseSection) {
+                // get its children then get its grandchildren to append to the list
+                const firstChild = $(currentElement).children('li:first-child');
+                const firstGrandchild = $(firstChild).children(':first-child');
+                const greatGrandchildren = $(firstGrandchild).children();
+                if ($(firstGrandchild).is('span') && greatGrandchildren.length > 0) {
+                    targetElements = targetElements.concat(greatGrandchildren);
+                } else targetElements.push($(firstGrandchild));
+                // for (const child of children) {
+                //     const grandchildren = $(child).children();
+                //     targetElements = targetElements.concat(grandchildren);
+                // }
+            } else {
+                // When we're expanding, target all descendants with hidden markers.
+                const hiddenDescendants = $(currentElement).find(`[style*="/*${hidden}*/"]`);
+                targetElements = targetElements.concat(hiddenDescendants);
+            }
+        } else if ($(currentElement).is(`.image`)) {
+            targetElements.push($(currentElement));
+        } else if ($(currentElement).is(unhandledElementSelectors)) {
+            // Skip elements that we can't handle, and stop if there's more than one in a row
+            if ($($(currentElement).next()).is(unhandledElementSelectors)) {
+                break;
+            }
+        } else break;
+        currentElement = $(currentElement).next();
+    }
+
+    // If the section is empty, do nothing.
+    if (targetElements.length == 0) return;
+    
+    // Add or remove a 'hidden' marker for each section element.
+    if (collapseSection) {
+        // Insert the error element in case the section header gets deleted when collapsed.
+        $(`<p style="margin-left:${indentValue + 40}px/*${hidden}*//*${error}*/;">
+            [Hidden Section]</p>`).insertBefore($(startElement));
+        
+        for (const targetElement of targetElements) {
+            let elementType = 'text';
+            if (targetElement.is('.image')) elementType = 'img';
+            else if (targetElement.is('span')) elementType = 'span';
+            
+            const newStyle = addMarker(
+                $(targetElement).attr('style'), hidden, elementType
+            );
+            $(targetElement).attr('style', newStyle);
+        }
+    } else {
+        for (const targetElement of targetElements) {
+            let elementType = 'text';
+            if (targetElement.is('.image')) elementType = 'img';
+            else if (targetElement.is('span')) elementType = 'span';
+            
+            const newStyle = removeMarker(
+                $(targetElement).attr('style'), hidden, elementType
+            );
+            $(targetElement).attr('style', newStyle);
+        }
+        
+        // Remove the error element now that the section is visible again.
+        if ($(startElement).is(`[style*="/*${error}*/"]`)) $(startElement).remove();
+    }
+}
+
+function getTextNodesIn(node, includeWhitespaceNodes) {
+    var textNodes = [], nonWhitespaceMatcher = /\S/;
+
+    function getTextNodes(node) {
+        if (node.nodeType == 3) {
+            if (includeWhitespaceNodes || nonWhitespaceMatcher.test(node.nodeValue)) {
+                textNodes.push(node);
+            }
+        } else {
+            for (var i = 0, len = node.childNodes.length; i < len; ++i) {
+                getTextNodes(node.childNodes[i]);
+            }
+        }
+    }
+
+    getTextNodes(node);
+    return textNodes;
+}
+
+async function moveCursorToElement(selectTarget) {
+    // See CKEditor 5 docs for info on these functions. (you will get a headache)
+    const editor = await api.getActiveContextTextEditor();
+    editor.editing.view.focus();
+    const model = editor.model;
+    const textNodes = getTextNodesIn(selectTarget);
+    const viewText = editor.editing.view.domConverter.findCorrespondingViewText(textNodes[0]);
+    const viewPosition = editor.editing.view.createPositionAt(viewText, 'end');
+    const modelPosition = editor.editing.mapper.toModelPosition(viewPosition);
+    const range = model.createRange(modelPosition);
+    model.change( writer => {
+        writer.setSelection(range);
+    });
 }
 
 if (doCollapsibleHeaders == 'true') {
@@ -459,150 +695,12 @@ $(document).on("click.collapse-section", `
         let isSectionCollapsed = newStyle.includes(`/*${collapsed}*/`);
         // Get the margin-left value of the e.target element
         const indentValue = getIndentValue(e.target);
-        // Divide it by 40 to find the array index to count from to get higher-indent css selectors
-        const selectorIndex = indentValue / 40; // 40 should be the default indent size (in pixels).
-            // We can only really support elements that preserve their indent level when created.
-            // Others are done through css and designated skipping with our custom nextUntil()
-            // simulation, but then they will always take the indent of the prior element.
-        
-            // These are elements we cannot handle (because they don't preserve margin-left / styles):
-                // (horizontal line, include note, mermaid diagram,
-                // code block, table, page break, img)
-            // These are elements we can handle:
-                // 1) (all other elements) - first element has indent
-                // 2) (block quote, caution, important, note, tip, warning) - child has indent
-                // 3) (lists) - grandchild has indent
-        const group1ElementCss = standardSelectors.slice(selectorIndex).join(', ');
-        const group2ElementCss = childSelectors.slice(selectorIndex).join(', ');
-        const group3ElementCss = grandchildSelectors.slice(selectorIndex).join(', ');
-        // Go until the element is not selectable by one in our lists
-        // Elements are separated by which one stores the indent info (group 1, 2, or 3)
-        let targetElements = [];
         let currentElement = $(e.target).next();
-        let isIteratingSubsection = false;
-        let subsectionIndentCss = '';
-        while (true) {
-            const isCurrentGroup1 = $(currentElement).is(group1ElementCss);
-            const isCurrentGroup2 = $(currentElement).is(group2ElementCss);
-            const isCurrentGroup3 = $(currentElement).is(group3ElementCss);
-            
-            // If we're collapsing, ignore already :hidden elements that belong
-            // to group 1, 2, or 3 css. Any non-hidden elements of a higher indent level than
-            // the original header should be made hidden.
-            if (isSectionCollapsed && $(currentElement).is(`:hidden`)) {
-                if (isCurrentGroup1 || isCurrentGroup2 || isCurrentGroup3) {
-                    currentElement = $(currentElement).next();
-                    continue;
-                }
-            }
-
-            // If we're iterating a subsection, ignore the element if it is a higher
-            // indent level than the threshold we noted at the beginning of the subsection.
-            // Make sure to set iteratingSubsection to false if it's a break element.
-            if (isIteratingSubsection) {
-                // if it's in the subsectionIndentCss styles, then skip it.
-                if ($(currentElement).is(subsectionIndentCss)) {
-                    currentElement = $(currentElement).next();
-                    continue;
-                }
-                // else if it's an image, skip it.
-                else if ($(currentElement).is('.image')) {
-                    currentElement = $(currentElement).next();
-                    continue;
-                }
-                // else if it's an unhandlable element,
-                else if ($(currentElement).is(unhandledElementSelectors)) {
-                    // Stop iterating through subsection if there's 2 unhandlables in a row
-                    if ($($(currentElement).next()).is(unhandledElementSelectors)) {
-                        isIteratingSubsection = false;
-                    } else { // if there's only one unhandlable in a row, skip it
-                        currentElement = $(currentElement).next();
-                        continue;
-                    }
-                }
-                else isIteratingSubsection = false;
-            }
-            
-            // If the current element is a collapsed header and we're expanding, the
-            // next loop iterations should ignore all subsequent elements of a
-            // higher indent level than that element (or are unhandlable).
-            if (
-                !isSectionCollapsed && 
-                $(currentElement).is(`[style*="/*${collapsed}*/"]`)
-            ) {
-                // We are now iterating through a subsection
-                isIteratingSubsection = true;
-                // Set the subsection indent level css, then proceed as usual to the next loop.
-                // This header element should still be handled normally.
-                const subsectionIndent = getIndentValue(currentElement);
-                const subsectionCssIndex = subsectionIndent / 40;
-                subsectionIndentCss = [
-                    standardSelectors.slice(subsectionCssIndex).join(', '),
-                    standardSelectors.slice(subsectionCssIndex).join(', '),
-                    standardSelectors.slice(subsectionCssIndex).join(', ')
-                ].join(', ');
-            }
-            
-            if (isCurrentGroup1) {
-                targetElements.push($(currentElement));
-            } else if (isCurrentGroup2) {
-                // get its children and append them to the list
-                const children = $(currentElement).children();
-                targetElements = targetElements.concat(children);
-            } else if (isCurrentGroup3) {
-                // get its children then get its grandchildren to append to the list
-                const children = $(currentElement).children();
-                for (const child of children) {
-                    const grandchildren = $(child).children();
-                    targetElements = targetElements.concat(grandchildren);
-                }
-            } else if ($(currentElement).is(`.image`)) {
-                targetElements.push($(currentElement));
-            } else if ($(currentElement).is(unhandledElementSelectors)) {
-                // Skip elements that we can't handle, and stop if there's more than one in a row
-                if ($($(currentElement).next()).is(unhandledElementSelectors)) {
-                    break;
-                }
-            } else break;
-            currentElement = $(currentElement).next();
-        }
-        
-        // Add or remove a 'hidden' marker for each section element.
-        if (isSectionCollapsed) {
-            // Insert the error element in case the section header gets deleted when collapsed.
-            $(`<p style="margin-left:${indentValue + 40}px/*${hidden}*//*${error}*/;">
-                [Hidden Section]</p>`).insertAfter($(e.target));
-            
-            for (const targetElement of targetElements) {
-                if (targetElement.is('.image')) {
-                    const newStyle = addMarker(
-                        $(targetElement).attr('style'), hidden, 'img'
-                    );
-                    $(targetElement).attr('style', newStyle);
-                } else {
-                    const newStyle = addMarker($(targetElement).attr('style'), hidden);
-                    $(targetElement).attr('style', newStyle);
-                }
-            }
-        } else {
-            for (const targetElement of targetElements) {
-                if (targetElement.is('.image')) {
-                    const newStyle = removeMarker(
-                        $(targetElement).attr('style'), hidden, 'img'
-                    );
-                    $(targetElement).attr('style', newStyle);
-                } else {
-                    const newStyle = removeMarker($(targetElement).attr('style'), hidden);
-                    $(targetElement).attr('style', newStyle);
-                }
-            }
-            
-            // Remove the error element now that the section is visible again.
-            const errorElement = $(e.target).next();
-            if ($(errorElement).is(`[style*="/*${error}*/"]`)) $(errorElement).remove();
-        }
+        toggleSectionVisibility(currentElement, indentValue, isSectionCollapsed);
         
         updateBackendData();
+
+        moveCursorToElement($(e.target)[0]);
     }
 });
 
@@ -615,8 +713,8 @@ $(document).on("click.collapse-section", `
 $(document).on("click.collapse-section", `
                     .note-detail-editable-text-editor [style*="/*${hidden}*/"],
                     .note-detail-editable-text-editor :has( > [style*="/*${hidden}*/"]),
-                    .note-detail-editable-text-editor ul:has(li > p[style*="/*${hidden}*/"]),
-                    .note-detail-editable-text-editor ol:has(li > p[style*="/*${hidden}*/"])
+                    .note-detail-editable-text-editor ul:has(p[style*="/*${hidden}*/"]),
+                    .note-detail-editable-text-editor ol:has(p[style*="/*${hidden}*/"])
                     `,
                     async e => {
     e.stopPropagation();
@@ -624,93 +722,12 @@ $(document).on("click.collapse-section", `
     const errorElements = $(`
         .note-detail-editable-text-editor
             [style*="/*${hidden}*/"]:not(:hidden)
-        `);
-    const group1ElementCss = standardSelectors.join(', ');
-    const group2ElementCss = childSelectors.join(', ');
-    const group3ElementCss = grandchildSelectors.join(', ');
-    // For each of them, get all the hidden elements that follow it.
-    // And remove thier 'hidden' marker
-    let hiddenSectionElements = [];
+    `);
     for (const errorElement of errorElements) {
-        // Made a custom "next until not hidden" function, since the JQuery
-        // nextUntil() kept retrieving the inline-styles wrong. This works fine.
-        let currentElement = errorElement;
-        let isIteratingSubsection = false;
-        let subsectionIndentCss = '';
-        do {
-            // If we're iterating a subsection, ignore the element if it is a higher
-            // indent level than the threshold we noted at the beginning of the subsection.
-            // Make sure to set iteratingSubsection to false if it's a break element.
-            if (isIteratingSubsection) {
-                // if it's in the subsectionIndentCss styles, then skip it.
-                if ($(currentElement).is(subsectionIndentCss)) {
-                    currentElement = $(currentElement).next();
-                    continue;
-                }
-                // else if it's an image, skip it.
-                else if ($(currentElement).is('.image')) {
-                    currentElement = $(currentElement).next();
-                    continue;
-                }
-                // else if it's an unhandlable element,
-                else if ($(currentElement).is(unhandledElementSelectors)) {
-                    // Stop iterating through subsection if there's 2 unhandlables in a row
-                    if ($($(currentElement).next()).is(unhandledElementSelectors)) {
-                        isIteratingSubsection = false;
-                    } else { // if there's only one unhandlable in a row, skip it
-                        currentElement = $(currentElement).next();
-                        continue;
-                    }
-                }
-                else isIteratingSubsection = false;
-            }
-            
-            // If the current element is a collapsed header and we're expanding, the
-            // next loop iterations should ignore all subsequent elements of a
-            // higher indent level than that element (or are unhandlable).
-            if (
-                $(currentElement).is(`[style*="/*${collapsed}*/"]`)
-            ) {
-                // We are now iterating through a subsection
-                isIteratingSubsection = true;
-                // Set the subsection indent level css, then proceed as usual to the next loop.
-                // This header element should still be handled normally.
-                const subsectionIndent = getIndentValue(currentElement);
-                const subsectionCssIndex = subsectionIndent / 40;
-                subsectionIndentCss = [
-                    standardSelectors.slice(subsectionCssIndex).join(', '),
-                    childSelectors.slice(subsectionCssIndex).join(', '),
-                    grandchildSelectors.slice(subsectionCssIndex).join(', ')
-                ].join(', ');
-            }
-            
-            if ($(currentElement).is(group1ElementCss)) {
-                hiddenSectionElements.push($(currentElement));
-            } else if ($(currentElement).is(group2ElementCss)) {
-                // get its children and append them to the list
-                const children = $(currentElement).children();
-                hiddenSectionElements = hiddenSectionElements.concat(children);
-            } else if ($(currentElement).is(group3ElementCss)) {
-                // get its children then get its grandchildren to append to the list
-                const children = $(currentElement).children();
-                for (const child of children) {
-                    const grandchildren = $(child).children();
-                    hiddenSectionElements = hiddenSectionElements.concat(grandchildren);
-                }
-            } else if ($(currentElement).is(`.image`)) {
-                const newStyle = removeMarker(
-                    $(currentElement).attr('style'), hidden, 'img'
-                );
-                $(currentElement).attr('style', newStyle);
-            }
-            currentElement = $(currentElement).next();
-        } while ($(currentElement).is(`:hidden`));
-        if ($(errorElement).is(`[style*="/*${error}*/"]`)) $(errorElement).remove();
-    }
-    // For all of these elements, remove the 'hidden' marker
-    for (const hiddenSectionElement of hiddenSectionElements) {
-        const newStyle = removeMarker($(hiddenSectionElement).attr('style'), hidden);
-        $(hiddenSectionElement).attr('style', newStyle);
+        // Get the margin-left value of the e.target element
+        const indentValue = getIndentValue(errorElement) - 40;
+        // Make the section visible
+        toggleSectionVisibility([errorElement], indentValue, false);
     }
     
     updateBackendData();
@@ -771,6 +788,7 @@ function addMarker(style, marker, elementType = 'text') {
     if (style == null) {
         if (elementType == 'text') newStyle = 'margin-left:0px;';
         else if (elementType == 'img') newStyle = 'height:auto;';
+        else if (elementType == 'span') newStyle = 'background-color:auto;';
     }
 
     // Add the marker
@@ -784,6 +802,7 @@ function removeMarker(style, marker, elementType = 'text') {
     if (style == null) {
         if (elementType == 'text') newStyle = 'margin-left:0px;';
         else if (elementType == 'img') newStyle = 'height:auto;';
+        else if (elementType == 'span') newStyle = 'background-color:auto;';
     }
 
     // Remove the marker
@@ -800,8 +819,7 @@ class CollapsibleSectionsWidget extends api.NoteContextAwareWidget {
     get parentWidget() { return 'note-detail-pane'; }
     
     doRender() {
-        this.$widget = $('<div></div>');
-        this.cssBlock(styles);
+        this.$widget = $('');
         return this.$widget;
     }
 

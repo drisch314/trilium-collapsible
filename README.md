@@ -46,7 +46,8 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
 ```
-5. Reload Trilium
+5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`
+6. Reload Trilium
 
 ## Planned Features
 * Make collapsible bullet points proportional to the font size.
