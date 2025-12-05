@@ -758,9 +758,8 @@ async function toggleCollapsibility() {
     // Set the note's backend data to the new data (that's being seen by the user)
     // and remove the cursor indicator from the note.
     updateBackendData(true);
-    // Regain focus, since we've clicked outside the editor to apply the style from the toolbar
-    const textEditor = await api.getActiveContextTextEditor();
-    textEditor.focus();
+    // Regain focus and place the cursor at the end of the header.
+    moveCursorToElement($(targetElement)[0]);
 }
 
 function toggleMarker(style, marker, defaultStyle = 'margin-left:0px;') {
