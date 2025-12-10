@@ -560,21 +560,12 @@ function toggleSectionVisibility(startElement, indentValue = 0, collapseSection 
             const isCurrentUnindentedList = $(currentElement).is(unindentedListCss);
             const isCurrentP = $(currentElement).is('p');
             if (isCurrentUnindentedList && !isCurrentP) {
-                // const content = $(currentElement).find('li').first().children().first();
-                // wrap <p> around it
-                // $(content).wrap(`<p style="margin-left:0px;"></p>`);
-                // Actually need to use the span background-color:auto style method for
-                // these, rather than wrapping. otherwise the hidden marker on the new p
-                // element cascades down sublists...
-
                 // If it's an empty unindented list, break! Just consider that the section end.
                 const firstLi = $(currentElement).children('li:first-child');
                 const liSpan = $(firstLi).children('span:first-child');
                 if ($(liSpan).html() == '<br data-cke-filler="true">') break;
-                // BUT CHANGE LIST HIDING SO WE DON'T GO THROUGH ALL CHILD LIs' CHILDREN
             }
-            // No need to add the <p> to the list of target elements. Will be done below now.
-        } // TODO!!!!!!!
+        }
         
         if (isCurrentGroup1) {
             targetElements.push($(currentElement));
@@ -591,10 +582,6 @@ function toggleSectionVisibility(startElement, indentValue = 0, collapseSection 
                 if ($(firstGrandchild).is('span') && greatGrandchildren.length > 0) {
                     targetElements = targetElements.concat(greatGrandchildren);
                 } else targetElements.push($(firstGrandchild));
-                // for (const child of children) {
-                //     const grandchildren = $(child).children();
-                //     targetElements = targetElements.concat(grandchildren);
-                // }
             } else {
                 // When we're expanding, target all descendants with hidden markers.
                 const hiddenDescendants = $(currentElement).find(`[style*="/*${hidden}*/"]`);
