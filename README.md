@@ -39,13 +39,14 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 3. Give the note the label `#widget`
 4. Optionally add these labels to enable UI-friendly options if you don't like the default behavior:
 ```
-#label:doCollapsibleHeaders="promoted,alias=Collapsible Headers,single,boolean" #doCollapsibleHeaders=true 
+#label:doCollapsibleHeaders="promoted,alias=Collapsible Headings,single,boolean" #doCollapsibleHeaders=true 
 #label:doCollapsibleLists="promoted,alias=Collapsible Lists,single,boolean" #doCollapsibleLists=true 
 #label:indentImages="promoted,alias=Try to Indent Images,single,boolean" #indentImages=true 
 #label:indentUnhandled="promoted,alias=Try to Indent Special Elements,single,boolean" #indentUnhandled=true 
 #label:considerListsIndented="promoted,alias=Consider Lists Indented,single,boolean" #considerListsIndented=true 
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
+#label:allHeadersCollapsible="promoted,alias=All Headings Collapsible,single,boolean" #allHeadersCollapsible=false
 ```
 5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`
 6. Reload Trilium

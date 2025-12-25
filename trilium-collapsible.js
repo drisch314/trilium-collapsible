@@ -29,13 +29,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /*
 To fully enable the widget options, add these attributes to its JS frontent note:
-#label:doCollapsibleHeaders="promoted,alias=Collapsible Headers,single,boolean" #doCollapsibleHeaders=true 
+#label:doCollapsibleHeaders="promoted,alias=Collapsible Headings,single,boolean" #doCollapsibleHeaders=true 
 #label:doCollapsibleLists="promoted,alias=Collapsible Lists,single,boolean" #doCollapsibleLists=true 
 #label:indentImages="promoted,alias=Try to Indent Images,single,boolean" #indentImages=true 
 #label:indentUnhandled="promoted,alias=Try to Indent Special Elements,single,boolean" #indentUnhandled=true 
 #label:considerListsIndented="promoted,alias=Consider Lists Indented,single,boolean" #considerListsIndented=true 
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
+#label:allHeadersCollapsible="promoted,alias=All Headings Collapsible,single,boolean" #allHeadersCollapsible=false 
 
 And add this label to enable functionality on mobile:
 #run=mobileStartup
@@ -48,6 +49,7 @@ const indentLevels = api.startNote.getLabelValue('indentLevels') ?? 10;
 const indentImages = api.startNote.getLabelValue('indentImages') ?? 'true';
 const indentUnhandled = api.startNote.getLabelValue('indentUnhandled') ?? 'true';
 const considerListsIndented = api.startNote.getLabelValue('considerListsIndented') ?? 'true';
+const allHeadersCollapsible = api.startNote.getLabelValue('allHeadersCollapsible') ?? 'false';
 
 // The cursor pattern allows us to find where the user is targeting in the note.
 // (where the cursor is)
@@ -79,13 +81,16 @@ const hiddenElementSelectors = `
     :is(ul, ol):has([style*="/*${hidden}*/"])
 `;
 
-const collapsibleElementSelectors = `
+let collapsibleElementSelectors = `
     h2[style*="/*${collapsible}*/"],
     h3[style*="/*${collapsible}*/"],
     h4[style*="/*${collapsible}*/"],
     h5[style*="/*${collapsible}*/"],
     h6[style*="/*${collapsible}*/"]
 `;
+if (allHeadersCollapsible === 'true') {
+    collapsibleElementSelectors = `h2, h3, h4, h5, h6`;
+}
 
 const collapsedElementSelectors = `
     h2[style*="/*${collapsed}*/"],
@@ -240,12 +245,18 @@ const collapsibleHeadersStyles = `
 }
 
 /* This detects if the marker is present in the element's inline styles. */
-.note-detail-editable-text-editor :is(${collapsibleElementSelectors}):not(ul *) {
+.note-detail-editable-text-editor :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+):not(ul *) {
     position: relative;
     padding-left: 12px;
 }
 
-.note-detail-editable-text-editor :is(${collapsibleElementSelectors}):not(ul *)::before {
+.note-detail-editable-text-editor :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+):not(ul *)::before {
     content: "►";
     display: flex;
     position: absolute;
@@ -265,13 +276,19 @@ const collapsibleHeadersStyles = `
     border-radius: 50%;
 }
 
-.note-detail-editable-text-editor :is(${collapsibleElementSelectors}):not(ul *):hover::before {
+.note-detail-editable-text-editor :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+):not(ul *):hover::before {
     background-color: var(--icon-button-hover-background);
     color: var(--icon-button-hover-color);
 }
 
 .note-detail-editable-text-editor
-        :is(${collapsibleElementSelectors})[style*="/*${collapsed}*/"]::before
+        :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+)[style*="/*${collapsed}*/"]::before
         {
     transform: rotate(0);
 }
@@ -391,7 +408,7 @@ async function updateBackendData(removeCursor = false) {
     // Remove the filler <br> element from empty bullet points.
     // (without this, CKEditor automatically adds another <br> to all empty bullets
     // when calling setData() for some reason)
-    const emptyBullets = $('.note-detail-editable-text-editor').find(`
+    const emptyBullets = $('.note-detail-editable-text-editor.ck-focused').find(`
         li br[data-cke-filler="true"]
     `);
     for (const emptyBullet of emptyBullets) {
@@ -399,7 +416,7 @@ async function updateBackendData(removeCursor = false) {
     }
     
     // Update the backend data to what the frontend looks like
-    let newData = $('.note-detail-editable-text-editor').html();
+    let newData = $('.note-detail-editable-text-editor.ck-focused').html();
     if (removeCursor) newData = newData.replace(cursor, '');
     const textEditor = await api.getActiveContextTextEditor();
     // Unfortunately, setData() resets undo/redo history, but this is the only way
@@ -556,7 +573,6 @@ function toggleSectionVisibility(startElement, indentValue = 0, collapseSection 
         }
         
         if (considerListsIndented == 'true' && collapseSection) {
-            // if it's an unindented list, wrap a <p> around the span.
             const isCurrentUnindentedList = $(currentElement).is(unindentedListCss);
             const isCurrentP = $(currentElement).is('p');
             if (isCurrentUnindentedList && !isCurrentP) {
@@ -669,10 +685,21 @@ async function moveCursorToElement(selectTarget) {
 }
 
 if (doCollapsibleHeaders == 'true') {
+let collapsibleHeadingSelector = `
+    .note-detail-editable-text-editor [style*="/*${collapsible}*/"]:not(ul *),
+    .note-detail-editable-text-editor [style*="/*${collapsed}*/"]:not(ul *)
+`;
+if (allHeadersCollapsible == 'true') {
+    collapsibleHeadingSelector = `
+        .note-detail-editable-text-editor h2:not(ul *),
+        .note-detail-editable-text-editor h3:not(ul *),
+        .note-detail-editable-text-editor h4:not(ul *),
+        .note-detail-editable-text-editor h5:not(ul *),
+        .note-detail-editable-text-editor h6:not(ul *)
+    `;
+}
 // Only collapse sections that are collapsible and not part of a list.
-$(document).on("click.collapse-section", `
-                    .note-detail-editable-text-editor [style*="/*${collapsible}*/"]:not(ul *)
-                    `,
+$(document).on("click.collapse-section", collapsibleHeadingSelector,
                     async e => {
     e.stopPropagation();
     const rect = e.target.getBoundingClientRect();
@@ -708,7 +735,7 @@ $(document).on("click.collapse-section", `
     e.stopPropagation();
     // Get all the elements with the hidden tag that are not hidden.
     const errorElements = $(`
-        .note-detail-editable-text-editor
+        .note-detail-editable-text-editor.ck-focused
             [style*="/*${hidden}*/"]:not(:hidden)
     `);
     for (const errorElement of errorElements) {
@@ -727,7 +754,7 @@ async function toggleCollapsibility() {
     await api.addTextToActiveContextEditor(cursor);
     // Locate the first element with the cursor indicator. This will be our target element.
     const targetElement = $(`
-        .note-detail-editable-text-editor :contains("${cursor}")
+        .note-detail-editable-text-editor.ck-focused :contains("${cursor}")
     `).first();
     
     const elementType = targetElement.prop('tagName');
@@ -829,7 +856,11 @@ class CollapsibleSectionsWidget extends api.NoteContextAwareWidget {
     }
     
     async refreshWithNote() {
-        if (doCollapsibleHeaders == 'true' && this.note.type === 'text') {
+        if (
+            doCollapsibleHeaders == 'true' && 
+            allHeadersCollapsible != 'true' &&
+            this.note.type === 'text'
+        ) {
             await this.addCollapsibleButton(this.noteContext.ntxId);
         }
     }
