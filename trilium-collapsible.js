@@ -37,6 +37,11 @@ To fully enable the widget options, add these attributes to its JS frontent note
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
 #label:allHeadersCollapsible="promoted,alias=All Headings Collapsible,single,boolean" #allHeadersCollapsible=false 
+#label:minimalCollapsedHeaders="promoted,alias=Minimal Collapsed Headings,single,boolean" #minimalCollapsedHeaders=false
+#label:minimalCollapsedLists="promoted,alias=Minimal Collapsed Lists,single,boolean" #minimalCollapsedLists=false 
+#label:dynamicListIndicator="promoted,alias=Dynamic List Indicator,single,boolean" #dynamicListIndicator=false
+#label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
+#label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 
 And add this label to enable functionality on mobile:
 #run=mobileStartup
@@ -44,12 +49,17 @@ And add this label to enable functionality on mobile:
 
 const doCollapsibleHeaders = api.startNote.getLabelValue('doCollapsibleHeaders') ?? 'true';
 const doCollapsibleLists = api.startNote.getLabelValue('doCollapsibleLists') ?? 'true';
-const toolbarButtonPosition = api.startNote.getLabelValue('toolbarButtonPosition') ?? 2;
-const indentLevels = api.startNote.getLabelValue('indentLevels') ?? 10;
 const indentImages = api.startNote.getLabelValue('indentImages') ?? 'true';
 const indentUnhandled = api.startNote.getLabelValue('indentUnhandled') ?? 'true';
 const considerListsIndented = api.startNote.getLabelValue('considerListsIndented') ?? 'true';
+const indentLevels = api.startNote.getLabelValue('indentLevels') ?? 10;
+const toolbarButtonPosition = api.startNote.getLabelValue('toolbarButtonPosition') ?? 2;
 const allHeadersCollapsible = api.startNote.getLabelValue('allHeadersCollapsible') ?? 'false';
+const minimalCollapsedHeaders = api.startNote.getLabelValue('minimalCollapsedHeaders') ?? 'false';
+const minimalCollapsedLists = api.startNote.getLabelValue('minimalCollapsedLists') ?? 'false';
+const dynamicListIndicator = api.startNote.getLabelValue('dynamicListIndicator') ?? 'false';
+const showListSectionLines = api.startNote.getLabelValue('showListSectionLines') ?? 'false';
+const usingOldLayout = api.startNote.getLabelValue('usingOldLayout') ?? 'false';
 
 // The cursor pattern allows us to find where the user is targeting in the note.
 // (where the cursor is)
@@ -141,9 +151,7 @@ if (indentImages === 'true' || indentUnhandled === 'true') {
     indentStyles = indentStyleList.join('\n');
 }
 
-const collapsibleListsStyles = `
-/* Collapsible Bullets CSS */
-
+const minimalCollapsedListsCss = `
 .note-detail-editable-text-editor
         ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child {
     margin-left: calc(-14px - 5px) !important;
@@ -230,6 +238,91 @@ const collapsibleListsStyles = `
     background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
     border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.5) c h);
 }
+`;
+const explicitCollapsedListsCss = `
+.note-detail-editable-text-editor
+        ul:not(.todo-list) > li {
+    --ck-content-list-marker-color: var(--ck-content-font-color);
+}
+
+.note-detail-editable-text-editor
+        ul:not(.todo-list) > li > ul:not(.todo-list) {
+    --ck-content-list-marker-color: var(--ck-content-font-color);
+}
+
+.note-detail-editable-text-editor
+        ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child {
+    position: relative;
+}
+
+/* Collapsible Marker */
+.note-detail-editable-text-editor
+        ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child::before {
+    content: "►";
+    color: var(--ck-content-list-marker-color);
+    display: flex;
+    position: absolute;
+    top: calc(100% - 20px);
+    left: -36px;
+    padding-left: 5px;
+    padding-right: 3px;
+    padding-top: 3px;
+    padding-bottom: 3.5px;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    cursor: pointer;
+    transform: rotate(90deg);
+    ${
+        dynamicListIndicator == 'true'?
+            'transition: transform 300ms ease; opacity: 0;' :
+            'transition: background-color 200ms ease, transform 300ms ease;'
+    }
+    font-size: 8px;
+    border-radius: 50%;
+}
+
+/* Only add the hover effect for lists that have sublists */
+.note-detail-editable-text-editor
+        ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child:hover::before {
+    background-color: var(--icon-button-hover-background);
+    ${dynamicListIndicator == 'true'? 'opacity: 1;' : ''}
+}
+
+.note-detail-editable-text-editor
+        ul:not(.todo-list)
+            > li:has( > :is(ul, ol))
+                > :first-child:has( > [style*="/*${listCollapsed}*/"])::before,
+.note-detail-editable-text-editor
+        ul:not(.todo-list)
+            > li:has( > :is(ul, ol))
+                > [style*="/*${listCollapsed}*/"]::before {
+    transform: rotate(0);
+    ${dynamicListIndicator == 'true'? 'opacity: 1;' : ''}
+}
+`;
+const listSectionLinesCss = `
+.note-detail-editable-text-editor ul:not(.todo-list) > li > :is(ul, ol) {
+    margin-left: -12.6px;
+    padding-left: calc(32px + 12.6px);
+    border-left-style: solid;
+    border-width: 1px;
+    border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
+    transition: border-color 200ms ease;
+}
+
+/*.note-detail-editable-text-editor
+        ul:not(.todo-list) > li:has( > :is(ul, ol)):has( > :first-child:hover)
+        > :is(ul, ol) {
+    border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.5) c h);
+}*/
+`;
+const collapsibleListsStyles = `
+/* Collapsible Bullets CSS */
+
+${minimalCollapsedLists == 'true'? minimalCollapsedListsCss : explicitCollapsedListsCss}
+
+${showListSectionLines == 'true'? listSectionLinesCss : ''}
 
 .note-detail-editable-text-editor :has( > [style*="/*${listCollapsed}*/"]) + :is(ul, ol),
 .note-detail-editable-text-editor [style*="/*${listCollapsed}*/"] + :is(ul, ol) {
@@ -237,26 +330,11 @@ const collapsibleListsStyles = `
 }
 `;
 
-const collapsibleHeadersStyles = `
-/* Collapsible Sections CSS */
-
-#collapsible-section-toggle::before {
-    font-size: 16px;
-}
-
-/* This detects if the marker is present in the element's inline styles. */
-.note-detail-editable-text-editor :is(
-    ${collapsibleElementSelectors},
-    ${collapsedElementSelectors}
-):not(ul *) {
+let collapsibleHeadingStyles = `
     position: relative;
     padding-left: 12px;
-}
-
-.note-detail-editable-text-editor :is(
-    ${collapsibleElementSelectors},
-    ${collapsedElementSelectors}
-):not(ul *)::before {
+`;
+let uncollapsedHeadingStyles = `
     content: "►";
     display: flex;
     position: absolute;
@@ -274,14 +352,71 @@ const collapsibleHeadersStyles = `
     transition: background-color 200ms ease, transform 300ms ease;
     font-size: 10px;
     border-radius: 50%;
+`;
+let uncollapsedHeadingHoverStyles = `
+    background-color: var(--icon-button-hover-background);
+    color: var(--icon-button-hover-color);
+`;
+let collapsedHeadingStyles = `
+    transform: rotate(0);
+`;
+if (minimalCollapsedHeaders == 'true') {
+    // Change the styles to be minimal
+    collapsibleHeadingStyles = `
+        position: relative;
+        padding-left: 2px;
+    `;
+    uncollapsedHeadingStyles = `
+        content: " ";
+        display: flex;
+        position: absolute;
+        top: 10%;
+        left: -10px;
+        width: 8px;
+        height: 80%;
+        cursor: pointer;
+        transition: background-color 200ms ease, border-color 200ms ease;
+        border-radius: 2px;
+    `;
+    uncollapsedHeadingHoverStyles = `
+        background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
+        border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.45) c h);
+    `;
+    collapsedHeadingStyles = `
+        background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
+        border-right-style: solid;
+        border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.6) c h);
+        border-width: 2px;
+    `;
+}
+
+const collapsibleHeadersStyles = `
+/* Collapsible Sections CSS */
+
+#collapsible-section-toggle::before {
+    font-size: 16px;
+}
+
+/* This detects if the marker is present in the element's inline styles. */
+.note-detail-editable-text-editor :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+):not(ul *) {
+    ${collapsibleHeadingStyles}
+}
+
+.note-detail-editable-text-editor :is(
+    ${collapsibleElementSelectors},
+    ${collapsedElementSelectors}
+):not(ul *)::before {
+    ${uncollapsedHeadingStyles}
 }
 
 .note-detail-editable-text-editor :is(
     ${collapsibleElementSelectors},
     ${collapsedElementSelectors}
 ):not(ul *):hover::before {
-    background-color: var(--icon-button-hover-background);
-    color: var(--icon-button-hover-color);
+    ${uncollapsedHeadingHoverStyles}
 }
 
 .note-detail-editable-text-editor
@@ -290,7 +425,7 @@ const collapsibleHeadersStyles = `
     ${collapsedElementSelectors}
 )[style*="/*${collapsed}*/"]::before
         {
-    transform: rotate(0);
+    ${collapsedHeadingStyles}
 }
 
 /* Detect hidden error elements whose collapsible section header got deleted */
@@ -367,7 +502,8 @@ const styles = `
 
 ${doCollapsibleLists == 'true' ? collapsibleListsStyles : ''}
 
-#right-pane .highlights-list li:has([style*="background-color:auto"]) {
+#right-pane .highlights-list li:has([style*="background-color:auto"]),
+#right-pane .highlights-list li:has( > span:not([style])) {
     display: none;
 }
 
@@ -703,7 +839,13 @@ $(document).on("click.collapse-section", collapsibleHeadingSelector,
                     async e => {
     e.stopPropagation();
     const rect = e.target.getBoundingClientRect();
-    if (e.pageX < rect.left + 8) {
+    let isClickOverToggle = false;
+    if (minimalCollapsedHeaders == 'true')
+        isClickOverToggle = e.pageX < rect.left;
+    else
+        isClickOverToggle = e.pageX < rect.left + 8;
+    
+    if (isClickOverToggle) {
         // Toggle the collapsed marker for the element.
         const newStyle = toggleMarker($(e.target).attr('style'), collapsed);
         $(e.target).attr('style', newStyle);
@@ -838,10 +980,10 @@ class CollapsibleSectionsWidget extends api.NoteContextAwareWidget {
     }
 
     async addCollapsibleButton(noteNtxId, attempts = 0) {
-        const $toolbar = $(`
-            .note-split[data-ntx-id="${noteNtxId}"] 
-            .ribbon-body-container
-        `).find('.ck-toolbar__items');
+        const toolbarContainerString = usingOldLayout == 'true'?
+            `.note-split[data-ntx-id="${noteNtxId}"] .ribbon-body-container` :
+            `.classic-toolbar-widget .ck-toolbar`;
+        const $toolbar = $(toolbarContainerString).find('.ck-toolbar__items');
         const noToolbarFound = $toolbar.length == 0;
         
         if (noToolbarFound && attempts < 10) { // Max Attempts = 10 (arbitrary)

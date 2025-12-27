@@ -7,6 +7,7 @@ A widget to enable collapsible sections and bullet points in Trilium.
 * A button has been added to the text-editing toolbar to toggle collapsibility for the heading targeted by the cursor. Collapsible headings can be distinguished by an arrow that appears to the left of them, indicating whether it is collapsed or expanded.
     * Collapsible headings can show/hide the section that immediately follows them.
     * A section consists of elements with an indent level greater than their header.
+    * An option exists to make all headings collapsible, instead of toggling individually.
 * If collapsible bullets are enabled, all bullet points with a sub-list may be clicked to toggle its visibility.
 
 Some elements (like code blocks) don't play well with my indent-based section implementation, as they don't maintain an indent level. So I made their behavior dependent on the line before them.
@@ -21,7 +22,7 @@ This occurs in two circumstances:
 2. When expanding/collapsing a section or bullet point.
 
 ## Why this?
-When I first switched from Notion to Trilium, this was one of the key features I missed. And it turns out I was not alone:  
+When I first switched to Trilium from other note-taking apps (Notion, Obsidian, etc.), this was one of the key features I missed. And it turns out I was not alone:  
 https://github.com/TriliumNext/Trilium/issues/947
 https://github.com/TriliumNext/Trilium/issues/1850
 
@@ -46,12 +47,16 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 #label:considerListsIndented="promoted,alias=Consider Lists Indented,single,boolean" #considerListsIndented=true 
 #label:indentLevels="promoted,alias=Supported Indent Levels,single,number" #indentLevels=10 
 #label:toolbarButtonPosition="promoted,alias=Toolbar Button Position,single,number" #toolbarButtonPosition=2
-#label:allHeadersCollapsible="promoted,alias=All Headings Collapsible,single,boolean" #allHeadersCollapsible=false
+#label:allHeadersCollapsible="promoted,alias=All Headings Collapsible,single,boolean" #allHeadersCollapsible=false 
+#label:minimalCollapsedHeaders="promoted,alias=Minimal Collapsed Headings,single,boolean" #minimalCollapsedHeaders=false
+#label:minimalCollapsedLists="promoted,alias=Minimal Collapsed Lists,single,boolean" #minimalCollapsedLists=false 
+#label:dynamicListIndicator="promoted,alias=Dynamic List Indicator,single,boolean" #dynamicListIndicator=false
+#label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
+#label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 ```
 5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`
 6. Reload Trilium
 
 ## Planned Features
-* Make collapsible bullet points proportional to the font size.
+* Make minimal collapsible bullet points proportional to the font size.
 * Make numbered lists collapsible.
-* Option for universal collapsible headings.
