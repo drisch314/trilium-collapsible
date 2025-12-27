@@ -1,6 +1,6 @@
 # trilium-collapsible
 A widget to enable collapsible sections and bullet points in Trilium.  
-*(Tested in TriliumNext v0.99.5)*
+*(Tested in TriliumNext v0.101.1)*
 
 ## Features
 !["Collapsible Section" Button](./images/collapsible-section-button.png)
@@ -58,5 +58,6 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 6. Reload Trilium
 
 ## Planned Features
+* Option to customize the indicator color for collapsed elements.
 * Make minimal collapsible bullet points proportional to the font size.
 * Make numbered lists collapsible.
