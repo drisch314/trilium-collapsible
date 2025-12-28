@@ -233,7 +233,7 @@ const minimalCollapsedListsCss = `
         ul:not(.todo-list)
             > li:has( > :is(ul, ol))
                 > :is(
-                    :first-child:has( > [style*="/*${listCollapsed}*/"]),
+                    :first-child:has([style*="/*${listCollapsed}*/"]),
                     [style*="/*${listCollapsed}*/"]
                 )::before {
     cursor: pointer;
@@ -307,7 +307,7 @@ const explicitCollapsedListsCss = `
         ul:not(.todo-list)
             > li:has( > :is(ul, ol))
                 > :is(
-                    :first-child:has( > [style*="/*${listCollapsed}*/"]),
+                    :first-child:has([style*="/*${listCollapsed}*/"]),
                     [style*="/*${listCollapsed}*/"]
                 )::before {
     transform: rotate(0);
@@ -319,7 +319,7 @@ const explicitCollapsedListsCss = `
         ul:not(.todo-list)
             > li:has( > :is(ul, ol)):has(
                     > [style*="/*${listCollapsed}*/"],
-                    > :first-child > [style*="/*${listCollapsed}*/"]
+                    > :first-child [style*="/*${listCollapsed}*/"]
                 ) > :first-child:hover::before {
     ${
         useCollapsedIndicatorColor == 'true'?
@@ -334,7 +334,7 @@ ${
             ul:not(.todo-list)
                 > li:has( > :is(ul, ol)):has(
                     > [style*="/*${listCollapsed}*/"],
-                    > :first-child > [style*="/*${listCollapsed}*/"]
+                    > :first-child [style*="/*${listCollapsed}*/"]
                 )::marker {
         color: ${collapsedIndicatorColor};
     }
@@ -364,7 +364,7 @@ ${minimalCollapsedLists == 'true'? minimalCollapsedListsCss : explicitCollapsedL
 
 ${showListSectionLines == 'true'? listSectionLinesCss : ''}
 
-.note-detail-editable-text-editor :has( > [style*="/*${listCollapsed}*/"]) + :is(ul, ol),
+.note-detail-editable-text-editor :first-child:has([style*="/*${listCollapsed}*/"]) + :is(ul, ol),
 .note-detail-editable-text-editor [style*="/*${listCollapsed}*/"] + :is(ul, ol) {
     display: none;
 }
