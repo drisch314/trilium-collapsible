@@ -3,7 +3,12 @@ A widget to enable collapsible sections and bullet points in Trilium.
 *(Tested in TriliumNext v0.101.1)*
 
 ## Features
+**Collapsible Sections and Lists**
+![Collapsible Section and List Example](./images/trilium-collapsible-example.png)
+
+**Collapsibility Toggle (for headings)**
 !["Collapsible Section" Button](./images/collapsible-section-button.png)
+
 * A button has been added to the text-editing toolbar to toggle collapsibility for the heading targeted by the cursor. Collapsible headings can be distinguished by an arrow that appears to the left of them, indicating whether it is collapsed or expanded.
     * Collapsible headings can show/hide the section that immediately follows them.
     * A section consists of elements with an indent level greater than their header.
