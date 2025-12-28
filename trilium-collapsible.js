@@ -41,6 +41,8 @@ To fully enable the widget options, add these attributes to its JS frontent note
 #label:minimalCollapsedLists="promoted,alias=Minimal Collapsed Lists,single,boolean" #minimalCollapsedLists=false 
 #label:dynamicListIndicator="promoted,alias=Dynamic List Indicator,single,boolean" #dynamicListIndicator=false
 #label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
+#label:collapsedIndicatorColor="promoted,alias=Collapsed Indicator Color,single,color" #collapsedIndicatorColor="#80e0e0"
+#label:useCollapsedIndicatorColor="promoted,alias=Use Collapsed Indicator Color,single,boolean" #useCollapsedIndicatorColor=false
 #label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 
 And add this label to enable functionality on mobile:
@@ -59,8 +61,10 @@ const minimalCollapsedHeaders = api.startNote.getLabelValue('minimalCollapsedHea
 const minimalCollapsedLists = api.startNote.getLabelValue('minimalCollapsedLists') ?? 'false';
 const dynamicListIndicator = api.startNote.getLabelValue('dynamicListIndicator') ?? 'false';
 const showListSectionLines = api.startNote.getLabelValue('showListSectionLines') ?? 'false';
+const collapsedIndicatorColor = api.startNote.getLabelValue('collapsedIndicatorColor') ?? '#80e0e0';
+const useCollapsedIndicatorColor = api.startNote.getLabelValue('useCollapsedIndicatorColor') ?? 'false';
 const usingOldLayout = api.startNote.getLabelValue('usingOldLayout') ?? 'false';
-
+console.log(collapsedIndicatorColor);
 // The cursor pattern allows us to find where the user is targeting in the note.
 // (where the cursor is)
 // WARNING: This should be a unique pattern that you will never type naturally!
@@ -152,12 +156,6 @@ if (indentImages === 'true' || indentUnhandled === 'true') {
 }
 
 const minimalCollapsedListsCss = `
-.note-detail-editable-text-editor
-        ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child {
-    margin-left: calc(-14px - 5px) !important;
-    padding-left: calc(14px + 5px) !important;
-}
-
 /* Hide default list marker */
 .note-detail-editable-text-editor
         ul:not(.todo-list) > li::marker {
@@ -222,7 +220,11 @@ const minimalCollapsedListsCss = `
 
 /* Only add the hover effect for lists that have sublists */
 .note-detail-editable-text-editor
-        ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child:hover::before {
+        ul:not(.todo-list) > li:has( > :is(ul, ol))
+        > :first-child:not(
+            [style*="/*${listCollapsed}*/"],
+            :has([style*="/*${listCollapsed}*/"])
+        ):hover::before {
     background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
     cursor: pointer;
 }
@@ -230,13 +232,21 @@ const minimalCollapsedListsCss = `
 .note-detail-editable-text-editor
         ul:not(.todo-list)
             > li:has( > :is(ul, ol))
-                > :first-child:has( > [style*="/*${listCollapsed}*/"])::before,
-.note-detail-editable-text-editor
-        ul:not(.todo-list)
-            > li:has( > :is(ul, ol))
-                > [style*="/*${listCollapsed}*/"]::before {
-    background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
-    border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.5) c h);
+                > :is(
+                    :first-child:has( > [style*="/*${listCollapsed}*/"]),
+                    [style*="/*${listCollapsed}*/"]
+                )::before {
+    cursor: pointer;
+    ${
+        useCollapsedIndicatorColor == 'true'? `
+        background-color: ${collapsedIndicatorColor + '33'};
+        border-color: ${collapsedIndicatorColor + '55'};
+        outline-color: ${collapsedIndicatorColor};
+        ` : `
+        background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
+        border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.5) c h);
+        `
+    }
 }
 `;
 const explicitCollapsedListsCss = `
@@ -260,13 +270,17 @@ const explicitCollapsedListsCss = `
         ul:not(.todo-list) > li:has( > :is(ul, ol)) > :first-child::before {
     content: "►";
     color: var(--ck-content-list-marker-color);
-    display: flex;
-    position: absolute;
-    top: calc(100% - 20px);
-    left: -36px;
+    display: inline-block;
+    box-sizing: border-box;
+    position: relative;
+    float: none;
+    top: -2px;
+    left: -20px;
+    line-height: 100%;
+    margin-left: -16px;
     padding-left: 5px;
     padding-right: 3px;
-    padding-top: 3px;
+    padding-top: 4px;
     padding-bottom: 3.5px;
     width: 16px;
     height: 16px;
@@ -292,13 +306,39 @@ const explicitCollapsedListsCss = `
 .note-detail-editable-text-editor
         ul:not(.todo-list)
             > li:has( > :is(ul, ol))
-                > :first-child:has( > [style*="/*${listCollapsed}*/"])::before,
-.note-detail-editable-text-editor
-        ul:not(.todo-list)
-            > li:has( > :is(ul, ol))
-                > [style*="/*${listCollapsed}*/"]::before {
+                > :is(
+                    :first-child:has( > [style*="/*${listCollapsed}*/"]),
+                    [style*="/*${listCollapsed}*/"]
+                )::before {
     transform: rotate(0);
     ${dynamicListIndicator == 'true'? 'opacity: 1;' : ''}
+    ${useCollapsedIndicatorColor == 'true'? `color: ${collapsedIndicatorColor};` : ''}
+}
+
+.note-detail-editable-text-editor
+        ul:not(.todo-list)
+            > li:has( > :is(ul, ol)):has(
+                    > [style*="/*${listCollapsed}*/"],
+                    > :first-child > [style*="/*${listCollapsed}*/"]
+                ) > :first-child:hover::before {
+    ${
+        useCollapsedIndicatorColor == 'true'?
+        `background-color: ${collapsedIndicatorColor + '33'};` : ''
+    }
+}
+
+/* Recolor default list marker when collapsed (if collapsed color is enabled) */
+${
+    useCollapsedIndicatorColor == 'true'? `
+    .note-detail-editable-text-editor
+            ul:not(.todo-list)
+                > li:has( > :is(ul, ol)):has(
+                    > [style*="/*${listCollapsed}*/"],
+                    > :first-child > [style*="/*${listCollapsed}*/"]
+                )::marker {
+        color: ${collapsedIndicatorColor};
+    }
+    ` : ``
 }
 `;
 const listSectionLinesCss = `
@@ -359,6 +399,11 @@ let uncollapsedHeadingHoverStyles = `
 `;
 let collapsedHeadingStyles = `
     transform: rotate(0);
+    ${
+        useCollapsedIndicatorColor == 'true'? `
+        color: ${collapsedIndicatorColor};
+        ` : ``
+    }
 `;
 if (minimalCollapsedHeaders == 'true') {
     // Change the styles to be minimal
@@ -367,7 +412,7 @@ if (minimalCollapsedHeaders == 'true') {
         padding-left: 2px;
     `;
     uncollapsedHeadingStyles = `
-        content: " ";
+        content: "";
         display: flex;
         position: absolute;
         top: 10%;
@@ -383,10 +428,19 @@ if (minimalCollapsedHeaders == 'true') {
         border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.45) c h);
     `;
     collapsedHeadingStyles = `
-        background-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
         border-right-style: solid;
-        border-color: oklch(from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.6) c h);
         border-width: 2px;
+        ${
+            useCollapsedIndicatorColor == 'true'? `
+            background-color: ${collapsedIndicatorColor + '33'};
+            border-color: ${collapsedIndicatorColor};
+            ` : `
+            background-color: oklch(
+                from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.3) c h);
+            border-color: oklch(
+                from var(--ck-color-base-background) calc(l + (0.8 - l) * 0.6) c h);
+            `
+        }
     `;
 }
 
@@ -413,19 +467,27 @@ const collapsibleHeadersStyles = `
 }
 
 .note-detail-editable-text-editor :is(
-    ${collapsibleElementSelectors},
-    ${collapsedElementSelectors}
-):not(ul *):hover::before {
+    ${collapsibleElementSelectors}
+):not(ul *, [style*="/*${collapsed}*/"]):hover::before {
     ${uncollapsedHeadingHoverStyles}
 }
 
-.note-detail-editable-text-editor
-        :is(
+.note-detail-editable-text-editor :is(
     ${collapsibleElementSelectors},
     ${collapsedElementSelectors}
-)[style*="/*${collapsed}*/"]::before
-        {
+)[style*="/*${collapsed}*/"]::before {
     ${collapsedHeadingStyles}
+}
+
+/* Collapsed hover styles if custom color is enabled */
+.note-detail-editable-text-editor :is(
+    ${collapsedElementSelectors}
+):not(ul *):hover::before {
+    ${useCollapsedIndicatorColor == 'true'? `
+        background-color: ${collapsedIndicatorColor + '33'};
+    ` : `
+        ${uncollapsedHeadingHoverStyles}
+    `}
 }
 
 /* Detect hidden error elements whose collapsible section header got deleted */
@@ -576,7 +638,7 @@ $(document).on("click.collapse-section", `
     // So we have to manually check that the clicked element's parent is a list item 🙄.
     const parentTag = $(e.target).parent().prop('tagName');
     const rect = e.target.getBoundingClientRect();
-    if (parentTag == 'LI' && e.pageX < rect.left + 14.4 && e.pageY > rect.top + 7) {
+    if (parentTag == 'LI' && e.pageX < rect.left) {
         // Toggle the list collapsed marker for the element.
         const listCollapsedElements = $(e.target).find(`[style*="/*${listCollapsed}*/"]`);
         const spans = $(e.target).find(`span`);

@@ -52,12 +52,13 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 #label:minimalCollapsedLists="promoted,alias=Minimal Collapsed Lists,single,boolean" #minimalCollapsedLists=false 
 #label:dynamicListIndicator="promoted,alias=Dynamic List Indicator,single,boolean" #dynamicListIndicator=false
 #label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
+#label:collapsedIndicatorColor="promoted,alias=Collapsed Indicator Color,single,color" #collapsedIndicatorColor="#80e0e0"
+#label:useCollapsedIndicatorColor="promoted,alias=Use Collapsed Indicator Color,single,boolean" #useCollapsedIndicatorColor=false
 #label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 ```
 5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`
 6. Reload Trilium
 
 ## Planned Features
-* Option to customize the indicator color for collapsed elements.
 * Make minimal collapsible bullet points proportional to the font size.
 * Make numbered lists collapsible.
