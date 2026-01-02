@@ -64,12 +64,6 @@ const showListSectionLines = api.startNote.getLabelValue('showListSectionLines')
 const collapsedIndicatorColor = api.startNote.getLabelValue('collapsedIndicatorColor') ?? '#80e0e0';
 const useCollapsedIndicatorColor = api.startNote.getLabelValue('useCollapsedIndicatorColor') ?? 'false';
 const usingOldLayout = api.startNote.getLabelValue('usingOldLayout') ?? 'false';
-console.log(collapsedIndicatorColor);
-// The cursor pattern allows us to find where the user is targeting in the note.
-// (where the cursor is)
-// WARNING: This should be a unique pattern that you will never type naturally!
-// If it is a common pattern appearing elsewhere in your notes, the code will not work properly!
-const cursor = '▼cursor▼';
 
 // These only appear in the HTML metadata, so there's no real need to change these.
 // If you change them after you've already started using the widget, things can break.
@@ -602,7 +596,7 @@ function getIndentValue(element) {
 }
 
 // Save the frontend state of the note, so our collapsible styles are persistent.
-async function updateBackendData(removeCursor = false) {
+async function updateBackendData() {
     // Remove the filler <br> element from empty bullet points.
     // (without this, CKEditor automatically adds another <br> to all empty bullets
     // when calling setData() for some reason)
@@ -615,7 +609,6 @@ async function updateBackendData(removeCursor = false) {
     
     // Update the backend data to what the frontend looks like
     let newData = $('.note-detail-editable-text-editor.ck-focused').html();
-    if (removeCursor) newData = newData.replace(cursor, '');
     const textEditor = await api.getActiveContextTextEditor();
     // Unfortunately, setData() resets undo/redo history, but this is the only way
     // I've found to make DOM changes persistent between viewings.
@@ -848,33 +841,13 @@ function toggleSectionVisibility(startElement, indentValue = 0, collapseSection 
     }
 }
 
-function getTextNodesIn(node, includeWhitespaceNodes) {
-    var textNodes = [], nonWhitespaceMatcher = /\S/;
-
-    function getTextNodes(node) {
-        if (node.nodeType == 3) {
-            if (includeWhitespaceNodes || nonWhitespaceMatcher.test(node.nodeValue)) {
-                textNodes.push(node);
-            }
-        } else {
-            for (var i = 0, len = node.childNodes.length; i < len; ++i) {
-                getTextNodes(node.childNodes[i]);
-            }
-        }
-    }
-
-    getTextNodes(node);
-    return textNodes;
-}
-
 async function moveCursorToElement(selectTarget) {
     // See CKEditor 5 docs for info on these functions. (you will get a headache)
     const editor = await api.getActiveContextTextEditor();
     editor.editing.view.focus();
     const model = editor.model;
-    const textNodes = getTextNodesIn(selectTarget);
-    const viewText = editor.editing.view.domConverter.findCorrespondingViewText(textNodes[0]);
-    const viewPosition = editor.editing.view.createPositionAt(viewText, 'end');
+    const selectTargetPosition = editor.editing.view.domConverter.domPositionToView(selectTarget);
+    const viewPosition = editor.editing.view.createPositionAt(selectTargetPosition, 'end');
     const modelPosition = editor.editing.mapper.toModelPosition(viewPosition);
     const range = model.createRange(modelPosition);
     model.change( writer => {
@@ -954,14 +927,19 @@ $(document).on("click.collapse-section", `
 }
 
 async function toggleCollapsibility() {
-    // Add text indicator at the cursor location so we can find the element to make collapsible.
-    await api.addTextToActiveContextEditor(cursor);
-    // Locate the first element with the cursor indicator. This will be our target element.
-    const targetElement = $(`
-        .note-detail-editable-text-editor.ck-focused :contains("${cursor}")
-    `).first();
+    const editor = await api.getActiveContextTextEditor();
+    const selection = editor.model.document.selection;
+    const position = selection.getFirstPosition();
+    const viewPosition = editor.editing.mapper.toViewPosition(position);
+    let viewNode = viewPosition.parent;
+    // Locate the base DOM element the cursor is in. This is our target element.
+    while (viewNode.name == null || viewNode.name == 'span') {
+        viewNode = viewNode.parent;
+    }
+    const domNode = editor.editing.view.domConverter.viewToDom(viewNode);
+    const targetElement = $(domNode);
     
-    const elementType = targetElement.prop('tagName');
+    const elementType =  targetElement.prop('tagName');
     // Only toggle collapsibility if it's a valid collapsible element type (header).
     if (['H2', 'H3', 'H4', 'H5', 'H6'].includes(elementType)) {
         const newStyle = toggleMarker(targetElement.attr('style'), collapsible);
@@ -974,8 +952,7 @@ async function toggleCollapsibility() {
     }
     
     // Set the note's backend data to the new data (that's being seen by the user)
-    // and remove the cursor indicator from the note.
-    updateBackendData(true);
+    updateBackendData();
     // Regain focus and place the cursor at the end of the header.
     moveCursorToElement($(targetElement)[0]);
 }
