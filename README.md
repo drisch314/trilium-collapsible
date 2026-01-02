@@ -59,6 +59,7 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 #label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
 #label:collapsedIndicatorColor="promoted,alias=Collapsed Indicator Color,single,color" #collapsedIndicatorColor="#80e0e0"
 #label:useCollapsedIndicatorColor="promoted,alias=Use Collapsed Indicator Color,single,boolean" #useCollapsedIndicatorColor=false
+#label:addKeyProtections="promoted,alias=Enter & Delete Protections,single,boolean" #addKeyProtections=true 
 #label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 ```
 5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`

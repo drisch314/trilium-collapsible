@@ -43,6 +43,7 @@ To fully enable the widget options, add these attributes to its JS frontent note
 #label:showListSectionLines="promoted,alias=Show List Section Lines,single,boolean" #showListSectionLines=false 
 #label:collapsedIndicatorColor="promoted,alias=Collapsed Indicator Color,single,color" #collapsedIndicatorColor="#80e0e0"
 #label:useCollapsedIndicatorColor="promoted,alias=Use Collapsed Indicator Color,single,boolean" #useCollapsedIndicatorColor=false
+#label:addKeyProtections="promoted,alias=Enter & Delete Protections,single,boolean" #addKeyProtections=true 
 #label:usingOldLayout="promoted,alias=Using Old UI Layout,single,boolean" #usingOldLayout=false 
 
 And add this label to enable functionality on mobile:
@@ -63,6 +64,7 @@ const dynamicListIndicator = api.startNote.getLabelValue('dynamicListIndicator')
 const showListSectionLines = api.startNote.getLabelValue('showListSectionLines') ?? 'false';
 const collapsedIndicatorColor = api.startNote.getLabelValue('collapsedIndicatorColor') ?? '#80e0e0';
 const useCollapsedIndicatorColor = api.startNote.getLabelValue('useCollapsedIndicatorColor') ?? 'false';
+const addKeyProtections = api.startNote.getLabelValue('addKeyProtections') ?? 'true';
 const usingOldLayout = api.startNote.getLabelValue('usingOldLayout') ?? 'false';
 
 // These only appear in the HTML metadata, so there's no real need to change these.
@@ -926,29 +928,43 @@ $(document).on("click.collapse-section", `
 });
 }
 
-async function toggleCollapsibility() {
-    const editor = await api.getActiveContextTextEditor();
-    const selection = editor.model.document.selection;
-    const position = selection.getFirstPosition();
+function getBaseDomNodeFromPosition(position, editor) {
     const viewPosition = editor.editing.mapper.toViewPosition(position);
     let viewNode = viewPosition.parent;
-    // Locate the base DOM element the cursor is in. This is our target element.
+    // Ensure we're retrieving the base element (not text)
     while (viewNode.name == null || viewNode.name == 'span') {
         viewNode = viewNode.parent;
     }
     const domNode = editor.editing.view.domConverter.viewToDom(viewNode);
-    const targetElement = $(domNode);
+    return $(domNode);
+}
+
+async function getSelectedDomElement(lastPosition = false) {
+    const editor = await api.getActiveContextTextEditor();
+    const selection = editor.model.document.selection;
+    const position = lastPosition?
+        selection.getLastPosition() :
+        selection.getFirstPosition();
+    const domNode = getBaseDomNodeFromPosition(position, editor);
+    return domNode;
+}
+
+async function toggleCollapsibility() {
+    // Locate the base DOM element the cursor is in. This is our target element.
+    const targetElement = await getSelectedDomElement();
     
     const elementType =  targetElement.prop('tagName');
-    // Only toggle collapsibility if it's a valid collapsible element type (header).
-    if (['H2', 'H3', 'H4', 'H5', 'H6'].includes(elementType)) {
-        const newStyle = toggleMarker(targetElement.attr('style'), collapsible);
-        targetElement.attr('style', newStyle);
-        if (newStyle.includes(`/*${collapsible}*/`)) {
-            $(targetElement).attr('contenteditable', false);
-        } else {
-            $(targetElement).attr('contenteditable', true);
-        }
+    
+    // Don't toggle collapsibility if it's not a valid collapsible element type (header).
+    if (!(['H2', 'H3', 'H4', 'H5', 'H6'].includes(elementType))) return;
+
+    const oldStyle = targetElement.attr('style');
+    const newStyle = toggleMarker(oldStyle, collapsible);
+    targetElement.attr('style', newStyle);
+    if (oldStyle.includes(`/*${collapsed}*/`)) {
+        const indentValue = getIndentValue(targetElement);
+        let currentElement = $(targetElement).next();
+        toggleSectionVisibility(currentElement, indentValue, false);
     }
     
     // Set the note's backend data to the new data (that's being seen by the user)
@@ -1015,19 +1031,22 @@ class CollapsibleSectionsWidget extends api.NoteContextAwareWidget {
     
     doRender() {
         this.$widget = $('');
-        return this.$widget;
+        this.initializedEditorIds = [];
+        // return this.$widget;
     }
 
-    async addCollapsibleButton(noteNtxId, attempts = 0) {
+    editorIntervalId = null;
+
+    async addCollapsibleButton(noteNtxId, attempt = 0) {
         const toolbarContainerString = usingOldLayout == 'true'?
             `.note-split[data-ntx-id="${noteNtxId}"] .ribbon-body-container` :
             `.classic-toolbar-widget .ck-toolbar`;
         const $toolbar = $(toolbarContainerString).find('.ck-toolbar__items');
         const noToolbarFound = $toolbar.length == 0;
         
-        if (noToolbarFound && attempts < 10) { // Max Attempts = 10 (arbitrary)
+        if (noToolbarFound && attempt < 10) { // Max Attempts = 10 (arbitrary)
             // 1000ms delay (1 second), then try adding the toolbar button again.
-            setTimeout(this.addCollapsibleButton.bind(this), 1000, noteNtxId, attempts + 1);
+            setTimeout(this.addCollapsibleButton.bind(this), 1000, noteNtxId, attempt + 1);
         } else {
             $toolbar.find('.collapsible-section-button').remove();
             const $button = $(TPL);
@@ -1035,14 +1054,99 @@ class CollapsibleSectionsWidget extends api.NoteContextAwareWidget {
             $button.on('click', toggleCollapsibility);
         }
     }
+
+    // This helps prevent errors when people try to delete a collapsed heading.
+    // It detects it and stops them, so there aren't orphaned hidden elements.
+    // (elements that were collapsed as part of the section but cannot be shown now)
+    async addKeyProtections() {
+        clearInterval(this.editorIntervalId);
+        this.editorIntervalId = setInterval(async () => {
+            const editor = await api.getActiveContextTextEditor();
+            if (!editor || this.initializedEditorIds.includes(editor.id)) {
+                return;
+            }
+            clearInterval(this.editorIntervalId);
+
+            this.initializedEditorIds.push(editor.id);
+            editor.editing.view.document.on('enter', ( evt, data ) => {
+                const selection = editor.model.document.selection;
+                const lastPosition = selection.getLastPosition();
+                const lastDomNode = getBaseDomNodeFromPosition(lastPosition, editor);
+                if ( // If last selection position is at end of collapsed heading
+                    lastDomNode.is(collapsedElementSelectors) &&
+                    lastPosition.parent.maxOffset == lastPosition.path[1]
+                ) {
+                    const firstPosition = selection.getFirstPosition();
+                    if (lastPosition.isEqual(firstPosition)) {
+                        // If first selection position is at the same place as the last
+                        data.preventDefault();
+                        evt.stop();
+                    } else { // Check if it would erase the collapsed heading
+                        const firstDomNode = getBaseDomNodeFromPosition(firstPosition, editor);
+                        // Ignore if selection is within the same element
+                        if (lastDomNode.is(firstDomNode)) return;
+                        data.preventDefault();
+                        evt.stop();
+                    }
+                }
+            }, { priority: 'high' });
+            editor.editing.view.document.on('delete', ( evt, data ) => {
+                const selection = editor.model.document.selection;
+                const lastPosition = selection.getLastPosition();
+                const lastDomNode = getBaseDomNodeFromPosition(lastPosition, editor);
+                const maxOffset = lastPosition.parent.maxOffset;
+                const isCollapsedHeading = lastDomNode.is(collapsedElementSelectors);
+                if (!isCollapsedHeading) return;
+                if (data.domEvent.inputType == 'deleteContentForward') {
+                    // Delete
+                    if (
+                        // If last selection position is at end of collapsed heading
+                        // (full or empty)
+                        maxOffset == lastPosition.path[1]
+                    ) {
+                        const firstPosition = selection.getFirstPosition();
+                        if (lastPosition.isEqual(firstPosition)) {
+                            // If first selection position is at the same place as the first
+                            data.preventDefault();
+                            evt.stop();
+                        } else {
+                            const firstDomNode = getBaseDomNodeFromPosition(firstPosition, editor);
+                            // Ignore if deletion is within the same element
+                            if (lastDomNode.is(firstDomNode)) return;
+                            data.preventDefault();
+                            evt.stop();
+                        }
+                    }
+                } else if (data.domEvent.inputType == 'deleteContentBackward') {
+                    // Backspace
+                    if ( // If last selection position is in an empty collapsed heading
+                        maxOffset == 0
+                    ) {
+                        // TODO Could automatically expand the heading instead.
+                        data.preventDefault();
+                        evt.stop();
+                    } else if (maxOffset == lastPosition.path[1]) {
+                        const firstPosition = selection.getFirstPosition();
+                        const firstDomNode = getBaseDomNodeFromPosition(firstPosition, editor);
+                        // Ignore if deletion is within the same element
+                        if (lastDomNode.is(firstDomNode)) return;
+                        data.preventDefault();
+                        evt.stop();
+                    }
+                }
+            }, { priority: 'high' });
+        }, 1000);
+    }
     
     async refreshWithNote() {
         if (
             doCollapsibleHeaders == 'true' && 
-            allHeadersCollapsible != 'true' &&
             this.note.type === 'text'
         ) {
-            await this.addCollapsibleButton(this.noteContext.ntxId);
+            if (addKeyProtections == 'true')
+                this.addKeyProtections();
+            if (allHeadersCollapsible != 'true')
+                await this.addCollapsibleButton(this.noteContext.ntxId);
         }
     }
 }
