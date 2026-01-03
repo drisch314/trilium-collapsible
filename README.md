@@ -65,6 +65,30 @@ If you have ideas for how to improve a feature or implement a new one, please fe
 5. Optionally add this label to enable functionality on mobile: `#run=mobileStartup`
 6. Reload Trilium
 
+## Options
+* **Collapsible Headings (default: on) -** Toggle all collapsible heading & section functionality. (hidden items will be shown again)
+* **Collapsible Lists (default: on) -** Toggle all collapsible list functionality. (hidden items will be shown again)
+* **Try to Indent Images (default: on) -** Images will take on the indent level of the item on the previous line (unless that item does not support indents natively).
+    * Precondition - *Collapsible Headings: on*
+* **Try to Indent Special Elements (default: on) -** Special elements like horizontal lines, embedded notes, or tables will take on the indent level of the item on the previous line (unless that item does not support indents natively).
+    * Precondition - *Collapsible Headings: on*
+* **Consider Lists Indented (default: on) -** When collapsing section headings, list items will be considered indented 1 more level than the location of their bullet point / marker. This better aligns with the visual appearance of list content already having an indent.
+* **Supported Indent Levels (default: 10) -** The number of indent levels that are distinguished for collapsible sections. It is recommended to keep this at a reasonable number to avoid unnecessary processing. (each indent level must be processsed individually, since indent-based sections aren't defined on an app-level)
+* **Toolbar Button Position (default: 2) -** Controls where in the text editing toolbar the "Collapsible Section" button will be placed.
+    * Precondition - *All Headings Collapsible: off*
+* **All Headings Collapsible (default: off) -** All headings are able to be collapsed. This also removes the button to toggle heading collapsibility individually, as it becomes redundant.
+* **Minimal Collapsed Headings (default: off) -** Enables a more discreet minimal style for collapsed headings, rather than an explicit arrow.
+* **Minimal Collapsed Lists (default: off) -** Enables a more discreet minimal style for collapsed lists, rather than an explicit arrow.
+* **Dynamic List Indicator (default: off) -** For un-collapsed list items, the collapse toggle / arrow will only appear when hovering over the list element.
+    * Precondition - *Minimal Collapsed Lists: off*
+* **Show List Section Lines (default: off) -** Gives each list level a vertical line on the left side denoting the section that would be collapsed by the list item at the top of the line.
+* **Collapsed Indicator Color (default: #80E0E0) -** A custom color to base collapsed indicators on to make them stand out more in your theme.
+    * Precondition - *Use Collapsed Indicator Color: on*
+* **Use Collapsed Indicator Color (default: off) -** Enables the use of the custom *Collapsed Indicator Color*.
+* **Enter & Delete Protections -** Try to catch instances of users deleting or repositioning a collapsed heading to avoid orphaning hidden items with no way of showing them again. (in such cases where the action is not caught, an error element will still appear and give you a chance to re-expand the orphaned section)
+    * Precondition - *Collapsible Headings: on*
+* **Using Old UI Layout (default: off) -** Enable this if you are using the old style (pre v.0.101.0) layout.
+
 ## Planned Features
 * Make minimal collapsible bullet points proportional to the font size.
 * Make numbered lists collapsible.
