@@ -608,6 +608,22 @@ async function updateBackendData() {
     for (const emptyBullet of emptyBullets) {
         $(emptyBullet).remove();
     }
+
+    // To prevent extra blank space from being added around horizontal lines.
+    const hrLines = $('.note-detail-editable-text-editor.ck-focused').find(`
+        div.ck-horizontal-line.ck-widget
+    `);
+    if ($(hrLines).length > 0) {
+        $(hrLines).replaceWith('<hr>');
+    }
+
+    // Page breaks
+    const pageBreaks = $('.note-detail-editable-text-editor.ck-focused').find(`
+        div.page-break.ck-widget
+    `);
+    if ($(pageBreaks).length > 0) {
+        $(pageBreaks).replaceWith('<br style="page-break-after: always;">');
+    }
     
     // Update the backend data to what the frontend looks like
     let newData = $('.note-detail-editable-text-editor.ck-focused').html();
