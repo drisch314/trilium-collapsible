@@ -628,9 +628,9 @@ async function updateBackendData() {
     // Update the backend data to what the frontend looks like
     let newData = $('.note-detail-editable-text-editor.ck-focused').html();
     const textEditor = await api.getActiveContextTextEditor();
-    // Unfortunately, setData() resets undo/redo history, but this is the only way
-    // I've found to make DOM changes persistent between viewings.
-    textEditor.setData(newData);
+    // This is an alternative to textEditor.setData() that makes persistent DOM
+    // changes while preserving undo/redo history.
+    textEditor.data.set(newData, { batchType: { isUndoable: true } });
 }
 
 

@@ -19,13 +19,6 @@ Some elements (like code blocks) don't play well with my indent-based section im
 
 But for those of you who would mostly use this to hide text (like me!), this won't be too big of a problem. Images should work fine, and other odd elements will be okay if you put a properly indented line right before them.
 
-## Notice!
-In order to make collapsible features persistent upon note reloads, this widget has to update note content in a way that will inadvertently erase your local undo/redo history (this should not impact Trilium's Note Revisions history).
-
-This occurs in two circumstances:  
-1. When toggling collapsibility for a section heading.
-2. When expanding/collapsing a section or bullet point.
-
 ## Why this?
 When I first switched to Trilium from other note-taking apps (Notion, Obsidian, etc.), this was one of the key features I missed. And it turns out I was not alone:  
 https://github.com/TriliumNext/Trilium/issues/947
