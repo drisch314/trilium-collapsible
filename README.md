@@ -1,5 +1,5 @@
-[!NOTE]
-As of TriliumNext v0.104.0, this functionality has been added to the base app! This extension is thus no longer being worked on.
+> [!NOTE]
+> As of TriliumNext v0.104.0, this functionality has been added to the base app! This extension is thus no longer being worked on.
 
 # trilium-collapsible
 A widget to enable collapsible sections and bullet points in Trilium.  
